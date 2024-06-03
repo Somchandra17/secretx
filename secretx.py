@@ -35,18 +35,15 @@ def printBanner():
 def printResult(name, key, url, output_file=None):
     if not key in alreadyfound:
         message = "Name: {}, Key: {}, URL: {}".format(name, key, url)
-        if args["colorless"] == True:
-            if output_file:
-                with open(output_file, "a") as f:
-                    f.write(message + "\n")
-            else:
-                print(message)
+        if args["colorless"]:
+            print(message)
         else:
-            if output_file:
-                with open(output_file, "a") as f:
-                    f.write(message + "\n")
-            else:
-                print(colored(message, random.choice(colors)))
+            print(colored(message, random.choice(colors)))
+        
+        if output_file:
+            with open(output_file, "a") as f:
+                f.write(message + "\n")
+        
         alreadyfound.append(key)
 
 def extractSecrets(url):
