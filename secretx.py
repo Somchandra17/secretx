@@ -54,12 +54,20 @@ def print_banner():
  /$$$$$$$/|  $$$$$$$|  $$$$$$$| $$      |  $$$$$$$  |  $$$$//$$/\  $$
 |_______/  \_______/ \_______/|__/       \_______/   \___/ |__/  \__/ 
 
-    """
+"""
     print(banner)
+
+def mask_data(data, visible_chars=4):
+    return '*' * (len(data) - visible_chars) + data[-visible_chars:]
 
 def print_result(name, key, url):
     if key not in already_found:
-        message = f"[+] Name: {name}, Key: {key}, URL: {url}"
+        # Mask sensitive data if necessary
+        masked_key = key
+        if name in ["credit_card_number", "ssn", "bank_account_number"]:
+            masked_key = mask_data(key)
+
+        message = f"[+] Type: {name}, Data: {masked_key}, URL: {url}"
         if args.colorless:
             print(message)
         else:
@@ -69,9 +77,21 @@ def print_result(name, key, url):
         # Write to output file if specified
         if args.output:
             with open(args.output, "a") as outfile:
-                outfile.write(f"Name: {name}, Key: {key}, URL: {url}\n")
+                outfile.write(f"Type: {name}, Data: {masked_key}, URL: {url}\n")
 
         already_found.add(key)
+
+def luhn_check(card_number):
+    digits = [int(d) for d in card_number if d.isdigit()]
+    checksum = 0
+    reverse_digits = digits[::-1]
+    for i, d in enumerate(reverse_digits):
+        if i % 2 == 0:
+            checksum += d
+        else:
+            doubled = d * 2
+            checksum += doubled - 9 if doubled > 9 else doubled
+    return checksum % 10 == 0
 
 def extract_secrets(url):
     req_headers = {
@@ -89,16 +109,27 @@ def extract_secrets(url):
         )
 
         if response.status_code in [200, 301, 302, 307, 308]:
+            content = response.text
             for name, pattern in patterns:
                 try:
-                    regex_pattern = re.compile(pattern)
-                    matches = regex_pattern.findall(response.text)
+                    regex_pattern = re.compile(pattern, re.MULTILINE)
+                    matches = regex_pattern.findall(content)
                     for match in matches:
                         if isinstance(match, tuple):
                             key_value = match[0]
                         else:
-                            key_value = match
-                        print_result(name, key_value, url)
+                            key_value = match.strip()
+
+                        # Validation for specific types
+                        report = True
+                        if name == "credit_card_number":
+                            card_number = key_value.replace(' ', '').replace('-', '')
+                            if not luhn_check(card_number):
+                                report = False
+                        # Additional validation can be added here
+
+                        if report:
+                            print_result(name, key_value, url)
                 except re.error as e:
                     print(f"Invalid regex pattern '{pattern}' for '{name}': {e}")
     except requests.exceptions.RequestException as e:
