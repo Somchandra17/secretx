@@ -109,32 +109,39 @@ def extract_secrets(url):
         )
 
         if response.status_code in [200, 301, 302, 307, 308]:
-            content = response.text
-            for name, pattern in patterns:
-                try:
-                    regex_pattern = re.compile(pattern, re.MULTILINE)
-                    matches = regex_pattern.findall(content)
-                    for match in matches:
-                        if isinstance(match, tuple):
-                            key_value = match[0]
-                        else:
-                            key_value = match.strip()
+    content = response.text
+    for name, pattern in patterns:
+        try:
+            regex_pattern = re.compile(pattern, re.MULTILINE)
+            matches = regex_pattern.findall(content)
+            for match in matches:
+                if isinstance(match, tuple):
+                    key_value = match[0]
+                else:
+                    key_value = match.strip()
 
-                        # Validation for specific types
-                        report = True
-                        if name == "credit_card_number":
-                            card_number = key_value.replace(' ', '').replace('-', '')
-                            if not luhn_check(card_number):
-                                report = False
-                        # Additional validation can be added here
+                # Check context around the match
+                start = max(0, content.find(key_value) - 10)
+                end = min(len(content), start + len(key_value) + 20)
+                context = content[start:end]
 
-                        if report:
-                            print_result(name, key_value, url)
-                except re.error as e:
-                    print(f"Invalid regex pattern '{pattern}' for '{name}': {e}")
-    except requests.exceptions.RequestException as e:
-        print(f"[!] Error fetching {url}: {e}")
+                if any(char in context for char in [';', '{', '}', '=', '(', ')', '"', "'"]):
+                    continue  # Skip minified code matches
 
+                # Validation logic
+                report = True
+                if name == "credit_card_number":
+                    card_number = key_value.replace(' ', '').replace('-', '')
+                    if not luhn_check(card_number):
+                        report = False
+                elif name == "aws_secret_access_key":
+                    if not key_value[0].isalpha():  # AWS keys start with a letter
+                        report = False
+
+                if report:
+                    print_result(name, key_value, url)
+        except re.error as e:
+            print(f"Invalid regex pattern '{pattern}' for '{name}': {e}")
 def main():
     print_banner()
     try:
