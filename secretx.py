@@ -44,7 +44,7 @@ args = ap.parse_args()
 thread_pool = ThreadPoolExecutor(max_workers=args.threads)
 
 def print_banner():
-    banner = """
+    banner = r"""
                                                      /$$             
                                                     | $$             
   /$$$$$$$  /$$$$$$   /$$$$$$$  /$$$$$$   /$$$$$$  /$$$$$$  /$$   /$$
